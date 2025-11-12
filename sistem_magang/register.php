@@ -17,11 +17,21 @@ if (isset($_POST['register'])) {
     $tanggal_keluar = $_POST['tanggal_keluar'];
     $foto = $_FILES['foto'];
 
-    // Validasi
-    if ($password !== $confirm_password) {
+    // Validasi input dasar
+    if (empty($nama) || empty($email) || empty($password) || empty($confirm_password) || empty($nim) || empty($universitas) || empty($jurusan) || empty($no_hp) || empty($alamat) || empty($tanggal_masuk) || empty($tanggal_keluar)) {
+        $register_error = "Semua field wajib diisi.";
+    } elseif ($password !== $confirm_password) {
         $register_error = "Password dan konfirmasi password tidak cocok.";
+    } elseif (strlen($password) < 8) {
+        $register_error = "Password minimal 8 karakter.";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $register_error = "Format email tidak valid.";
+    } elseif (!preg_match('/^[0-9]+$/', $nim)) {
+        $register_error = "NIM hanya boleh berisi angka.";
+    } elseif (!preg_match('/^[0-9]+$/', $no_hp)) {
+        $register_error = "Nomor HP hanya boleh berisi angka.";
     } else {
-        // Cek email sudah ada
+        // Cek email sudah ada (prepared statement)
         $check_email = mysqli_prepare($conn, "SELECT * FROM register WHERE email = ?");
         mysqli_stmt_bind_param($check_email, "s", $email);
         mysqli_stmt_execute($check_email);
@@ -41,35 +51,53 @@ if (isset($_POST['register'])) {
                 } elseif ($tanggal_keluar <= $tanggal_masuk) {
                     $register_error = "Tanggal keluar harus lebih besar dari tanggal masuk.";
                 } else {
-                    // Validasi file foto
+                    // Validasi file foto dengan keamanan tinggi
                     $allowed_types = ['image/jpeg', 'image/png', 'image/jpg'];
                     $max_size = 2 * 1024 * 1024; // 2MB
-                    if (!in_array($foto['type'], $allowed_types)) {
-                        $register_error = "Format file foto harus JPG atau PNG.";
-                    } elseif ($foto['size'] > $max_size) {
-                        $register_error = "Ukuran file foto maksimal 2MB.";
+
+                    if (!isset($foto['tmp_name']) || empty($foto['tmp_name'])) {
+                        $register_error = "Foto wajib diunggah.";
                     } else {
-                        // Upload file
-                        $foto_name = uniqid() . '_' . $foto['name'];
-                        $foto_path = "uploads/" . $foto_name;
-                        if (!move_uploaded_file($foto['tmp_name'], $foto_path)) {
-                            $register_error = "Gagal mengunggah foto.";
+                        // Cek MIME type real (keamanan dari file berbahaya)
+                        $finfo = new finfo(FILEINFO_MIME_TYPE);
+                        $mime = $finfo->file($foto['tmp_name']);
+                        if (!in_array($mime, $allowed_types)) {
+                            $register_error = "Format file foto harus JPG atau PNG.";
+                        } elseif ($foto['size'] > $max_size) {
+                            $register_error = "Ukuran file foto maksimal 2MB.";
                         } else {
-                            // Hash password
-                            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                            
-                            // Insert ke tabel register dengan prepared statement
-                            $query = "INSERT INTO register (nama, email, password, nim, universitas, jurusan, no_hp, alamat, tanggal_masuk, tanggal_keluar, foto, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())";
-                            $stmt = mysqli_prepare($conn, $query);
-                            mysqli_stmt_bind_param($stmt, "sssssssssss", $nama, $email, $hashed_password, $nim, $universitas, $jurusan, $no_hp, $alamat, $tanggal_masuk, $tanggal_keluar, $foto_path);
-                            if (mysqli_stmt_execute($stmt)) {
-                                $register_success = "Pendaftaran berhasil! Menunggu persetujuan admin.";
-                            } else {
-                                $register_error = "Terjadi kesalahan saat pendaftaran.";
-                                // Hapus file jika gagal insert
-                                if (file_exists($foto_path)) {
-                                    unlink($foto_path);
+                            // Buat folder uploads jika belum ada
+                            $upload_dir = "uploads/";
+                            if (!is_dir($upload_dir)) {
+                                mkdir($upload_dir, 0755, true);
+                            }
+
+                            // Nama file aman: random + ext
+                            $file_ext = pathinfo($foto['name'], PATHINFO_EXTENSION);
+                            $foto_name = bin2hex(random_bytes(16)) . '.' . $file_ext; // Keamanan tinggi
+                            $foto_path = $upload_dir . $foto_name;
+
+                            // Pindah file
+                            if (move_uploaded_file($foto['tmp_name'], $foto_path)) {
+                                // Hash password bcrypt
+                                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+
+                                // Insert dengan prepared statement
+                                $query = "INSERT INTO register (nama, email, password, nim, universitas, jurusan, no_hp, alamat, tanggal_masuk, tanggal_keluar, foto, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())";
+                                $stmt = mysqli_prepare($conn, $query);
+                                mysqli_stmt_bind_param($stmt, "sssssssssss", $nama, $email, $hashed_password, $nim, $universitas, $jurusan, $no_hp, $alamat, $tanggal_masuk, $tanggal_keluar, $foto_path);
+                                if (mysqli_stmt_execute($stmt)) {
+                                    $register_success = "Pendaftaran berhasil! Menunggu persetujuan admin.";
+                                } else {
+                                    $register_error = "Terjadi kesalahan saat pendaftaran.";
+                                    // Hapus file jika gagal insert
+                                    if (file_exists($foto_path)) {
+                                        unlink($foto_path);
+                                    }
                                 }
+                                mysqli_stmt_close($stmt);
+                            } else {
+                                $register_error = "Gagal mengunggah foto. Pastikan folder uploads ada dan writable.";
                             }
                         }
                     }
@@ -85,35 +113,24 @@ if (isset($_POST['register'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registrasi - SPAM DPUPR Banten</title>
+    <title>Registrasi - Sistem Magang</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #2563eb;
-            --primary-gradient: linear-gradient(135deg, #2563eb, #1d4ed8);
-            --accent: #1d4ed8;
-            --success: #10b981;
-            --danger: #ef4444;
-            --text: #1a1a1a;
-            --text-light: #666;
-            --bg: #f8fafc;
-            --card-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-            --border: #e0e0e0;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+            --primary-color: #1E3A8A;
+            --secondary-color: #EFF6FF;
+            --accent-color: #60A5FA;
+            --text-color: #1f2937;
+            --muted-color: #6b7280;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
         }
 
         body {
             font-family: 'Inter', sans-serif;
-            background: 
-                linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
-                url('images/img4.webp') center/cover no-repeat fixed;
+            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('images/img4.webp') center/cover no-repeat fixed;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -122,7 +139,7 @@ if (isset($_POST['register'])) {
             position: relative;
             overflow-x: hidden;
         }
-        
+
         body::before {
             content: '';
             position: absolute;
@@ -140,7 +157,7 @@ if (isset($_POST['register'])) {
             background: white;
             border-radius: 30px;
             overflow: hidden;
-            box-shadow: var(--card-shadow);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
             position: relative;
             z-index: 1;
         }
@@ -168,7 +185,7 @@ if (isset($_POST['register'])) {
         }
 
         .left-panel::-webkit-scrollbar-thumb {
-            background: var(--primary);
+            background: var(--primary-color);
             border-radius: 10px;
         }
 
@@ -201,30 +218,30 @@ if (isset($_POST['register'])) {
         }
 
         .account-link {
-            color: var(--text-light);
+            color: var(--muted-color);
             font-size: 14px;
             text-decoration: none;
             transition: color 0.3s;
         }
 
         .account-link:hover {
-            color: var(--primary);
+            color: var(--primary-color);
         }
 
         .account-link span {
-            color: var(--primary);
+            color: var(--primary-color);
             font-weight: 600;
         }
 
         h1 {
             font-size: 32px;
-            color: var(--text);
+            color: var(--text-color);
             margin-bottom: 8px;
             font-weight: 700;
         }
 
         .subtitle {
-            color: var(--text-light);
+            color: var(--muted-color);
             font-size: 14px;
             margin-bottom: 15px;
         }
@@ -232,7 +249,7 @@ if (isset($_POST['register'])) {
         .divider {
             width: 50px;
             height: 4px;
-            background: var(--primary-gradient);
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
             border-radius: 2px;
             margin-bottom: 20px;
         }
@@ -254,14 +271,14 @@ if (isset($_POST['register'])) {
 
         label {
             display: block;
-            color: var(--text);
+            color: var(--text-color);
             font-size: 13px;
             margin-bottom: 6px;
             font-weight: 500;
         }
 
         label i {
-            color: var(--primary);
+            color: var(--primary-color);
             margin-right: 5px;
             font-size: 12px;
         }
@@ -282,9 +299,9 @@ if (isset($_POST['register'])) {
 
         input:focus, textarea:focus {
             outline: none;
-            border-color: var(--primary);
+            border-color: var(--primary-color);
             background: white;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            box-shadow: 0 0 0 3px rgba(30,58,138,0.1);
         }
 
         textarea {
@@ -320,7 +337,7 @@ if (isset($_POST['register'])) {
 
         .file-input:hover {
             background: #e2e8f0;
-            border-color: var(--primary);
+            border-color: var(--primary-color);
         }
 
         .file-input input[type="file"] {
@@ -336,7 +353,7 @@ if (isset($_POST['register'])) {
         .btn-register {
             width: 100%;
             padding: 14px;
-            background: var(--primary-gradient);
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
             color: white;
             border: none;
             border-radius: 10px;
@@ -344,24 +361,28 @@ if (isset($_POST['register'])) {
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
-            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
-            margin-top: 20px;
+            box-shadow: 0 4px 15px rgba(30,58,138,0.2);
         }
 
         .btn-register:hover {
             transform: translateY(-2px);
-            box-shadow: 0 12px 25px rgba(37, 99, 235, 0.4);
+            box-shadow: 0 6px 20px rgba(30,58,138,0.3);
         }
 
         .alert {
             padding: 12px 16px;
             border-radius: 10px;
-            margin-bottom: 15px;
-            font-size: 13px;
+            margin-bottom: 20px;
+            font-size: 14px;
             display: flex;
             align-items: center;
             gap: 10px;
-            grid-column: 1 / -1;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .alert-danger {
@@ -378,23 +399,20 @@ if (isset($_POST['register'])) {
 
         .footer-text {
             text-align: center;
-            color: #94a3b8;
+            color: var(--muted-color);
             font-size: 12px;
             margin-top: 20px;
-            padding-top: 15px;
-            border-top: 1px solid #e5e7eb;
         }
 
-        /* Right Panel */
         .right-panel {
-            background: var(--primary-gradient);
-            padding: 40px 35px;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            padding: 40px 30px;
+            color: white;
+            position: relative;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            position: relative;
-            overflow: hidden;
-            color: white;
         }
 
         .right-panel::before {
@@ -402,9 +420,9 @@ if (isset($_POST['register'])) {
             position: absolute;
             top: -50%;
             right: -20%;
-            width: 400px;
-            height: 400px;
-            background: rgba(255, 255, 255, 0.1);
+            width: 300px;
+            height: 300px;
+            background: rgba(255,255,255,0.1);
             border-radius: 50%;
             backdrop-filter: blur(10px);
         }
@@ -415,87 +433,64 @@ if (isset($_POST['register'])) {
         }
 
         .card {
-            background: rgba(255, 255, 255, 0.15);
+            background: rgba(255,255,255,0.15);
             backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 25px;
+            border-radius: 16px;
+            padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
             animation: float 3s ease-in-out infinite;
-            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
         }
 
         .card:nth-child(2) { animation-delay: 0.5s; }
+        .card:nth-child(3) { animation-delay: 1s; }
 
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
         }
 
         .card-title {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
         }
 
         .icon-circle {
             width: 40px;
             height: 40px;
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255,255,255,0.2);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+            font-size: 18px;
         }
 
         .card-content {
-            font-size: 14px;
-            line-height: 1.6;
+            font-size: 13px;
+            line-height: 1.5;
             opacity: 0.9;
         }
 
+        /* Responsif */
         @media (max-width: 1200px) {
-            .content-grid {
-                grid-template-columns: 1fr 350px;
-            }
-            .left-panel {
-                padding: 35px 40px;
-            }
-            .right-panel {
-                padding: 35px 25px;
-            }
-        }
-
-        @media (max-width: 968px) {
-            .content-grid {
-                grid-template-columns: 1fr;
-            }
-            .right-panel {
-                display: none;
-            }
-            .left-panel {
-                padding: 30px 25px;
-                max-height: none;
-            }
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
+            .content-grid { grid-template-columns: 1fr; }
+            .right-panel { display: none; }
         }
 
         @media (max-width: 576px) {
-            h1 {
-                font-size: 26px;
-            }
-            .left-panel {
-                padding: 25px 20px;
-            }
+            .left-panel { padding: 30px 25px; }
+            .form-grid { grid-template-columns: 1fr; gap: 12px; }
+            .header { margin-bottom: 20px; }
+            h1 { font-size: 28px; }
         }
     </style>
 </head>
@@ -516,23 +511,23 @@ if (isset($_POST['register'])) {
                     <div class="divider"></div>
                 </div>
 
+                <?php if(isset($register_error)): ?>
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <?= $register_error ?>
+                    </div>
+                <?php endif; ?>
+
+                <?php if(isset($register_success)): ?>
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i>
+                        <?= $register_success ?>
+                    </div>
+                <?php endif; ?>
+
                 <form method="post" id="registerForm" enctype="multipart/form-data">
                     <div class="form-grid">
-                        <?php if(isset($register_error)): ?>
-                            <div class="alert alert-danger">
-                                <i class="fas fa-exclamation-circle"></i>
-                                <?= $register_error ?>
-                            </div>
-                        <?php endif; ?>
-
-                        <?php if(isset($register_success)): ?>
-                            <div class="alert alert-success">
-                                <i class="fas fa-check-circle"></i>
-                                <?= $register_success ?>
-                            </div>
-                        <?php endif; ?>
-
-                        <div class="form-group full-width">
+                        <div class="form-group">
                             <label><i class="fas fa-user"></i> Nama Lengkap</label>
                             <div class="input-wrapper">
                                 <input type="text" name="nama" placeholder="Masukkan nama lengkap" required>
@@ -617,7 +612,7 @@ if (isset($_POST['register'])) {
                         <div class="form-group">
                             <label><i class="fas fa-lock"></i> Password</label>
                             <div class="input-wrapper">
-                                <input type="password" name="password" id="password" placeholder="Masukkan password" required>
+                                <input type="password" name="password" id="password" placeholder="Masukkan password" required minlength="8">
                                 <span class="input-icon" onclick="togglePassword('password', this)">
                                     <i class="fas fa-eye"></i>
                                 </span>
@@ -627,7 +622,7 @@ if (isset($_POST['register'])) {
                         <div class="form-group">
                             <label><i class="fas fa-lock"></i> Konfirmasi Password</label>
                             <div class="input-wrapper">
-                                <input type="password" name="confirm_password" id="confirmPassword" placeholder="Konfirmasi password" required>
+                                <input type="password" name="confirm_password" id="confirmPassword" placeholder="Konfirmasi password" required minlength="8">
                                 <span class="input-icon" onclick="togglePassword('confirmPassword', this)">
                                     <i class="fas fa-eye"></i>
                                 </span>
@@ -722,4 +717,4 @@ if (isset($_POST['register'])) {
         });
     </script>
 </body>
-</html>
+</html>  

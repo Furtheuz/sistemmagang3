@@ -28,12 +28,7 @@ if (isset($_POST['login'])) {
                     'email' => $user['email'],
                     'role' => $user['role']
                 ];
-
-                if ($user['role'] === 'admin') {
-                    header("Location: dashboard.php");
-                } else {
-                    header("Location: dashboard.php");
-                }
+                header("Location: dashboard.php");
                 exit();
             } else {
                 $error = "Password salah!";
@@ -46,6 +41,7 @@ if (isset($_POST['login'])) {
 }
 ?>
 
+<!-- HTML login tetap sama -->
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -56,6 +52,7 @@ if (isset($_POST['login'])) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* CSS login tetap sama seperti sebelumnya */
         :root {
             --primary: #2563eb;
             --primary-gradient: linear-gradient(135deg, #2563eb, #1d4ed8);
@@ -63,7 +60,6 @@ if (isset($_POST['login'])) {
             --card-shadow: 0 20px 60px rgba(0,0,0,0.15);
             --border: #e0e0e0;
         }
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Inter', sans-serif;
@@ -75,7 +71,6 @@ if (isset($_POST['login'])) {
             padding: 20px;
             overflow: hidden;
         }
-
         .container-wrapper {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -87,146 +82,38 @@ if (isset($_POST['login'])) {
             box-shadow: var(--card-shadow);
             max-height: 95vh;
         }
-
-        .left-panel {
-            padding: 50px 45px;
-            background: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            overflow-y: auto;
-        }
-
+        .left-panel { padding: 50px 45px; background: white; display: flex; flex-direction: column; justify-content: center; overflow-y: auto; }
         .logo { width: 70px; height: 70px; margin: 0 auto 20px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .logo img { width: 60px; height: 60px; object-fit: contain; }
-
         h1 { font-size: 36px; font-weight: 700; text-align: center; margin-bottom: 10px; }
         .subtitle { text-align: center; color: #666; font-size: 15px; }
-
-        .divider {
-            width: 60px;
-            height: 4px;
-            background: var(--primary-gradient);
-            border-radius: 2px;
-            margin: 25px auto;
-        }
-
+        .divider { width: 60px; height: 4px; background: var(--primary-gradient); border-radius: 2px; margin: 25px auto; }
         .form-group { margin-bottom: 22px; position: relative; }
         label { font-size: 14px; font-weight: 500; margin-bottom: 8px; display: block; }
         label i { color: var(--primary); margin-right: 6px; }
-
-        input {
-            width: 100%;
-            padding: 15px 45px 15px 16px;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            font-size: 15px;
-            background: #fafafa;
-            transition: all 0.3s;
-        }
-        input:focus {
-            outline: none;
-            border-color: var(--primary);
-            background: white;
-            box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
-        }
-
-        .input-icon {
-            position: absolute;
-            right: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #999;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        .btn-login {
-            width: 100%;
-            padding: 16px;
-            background: var(--primary-gradient);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 8px 20px rgba(37,99,235,0.3);
-        }
+        input { width: 100%; padding: 15px 45px 15px 16px; border: 1px solid var(--border); border-radius: 12px; font-size: 15px; background: #fafafa; transition: all 0.3s; }
+        input:focus { outline: none; border-color: var(--primary); background: white; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        .input-icon { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: #999; cursor: pointer; font-size: 16px; }
+        .btn-login { width: 100%; padding: 16px; background: var(--primary-gradient); color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 8px 20px rgba(37,99,235,0.3); }
         .btn-login:hover { transform: translateY(-2px); box-shadow: 0 12px 25px rgba(37,99,235,0.4); }
-
-        .alert-danger {
-            background: #fee2e2;
-            color: #991b1b;
-            padding: 14px 18px;
-            border-radius: 12px;
-            border: 1px solid #fecaca;
-            margin-bottom: 25px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            animation: shake 0.5s ease;
-        }
-        @keyframes shake {
-            0%,100% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            75% { transform: translateX(5px); }
-        }
-
-        .register-link {
-            text-align: center;
-            margin-top: 30px;
-            padding-top: 25px;
-            border-top: 1px solid #e5e7eb;
-        }
+        .alert-danger { background: #fee2e2; color: #991b1b; padding: 14px 18px; border-radius: 12px; border: 1px solid #fecaca; margin-bottom: 25px; display: flex; align-items: center; gap: 10px; animation: shake 0.5s ease; }
+        @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+        .register-link { text-align: center; margin-top: 30px; padding-top: 25px; border-top: 1px solid #e5e7eb; }
         .register-link a { color: var(--primary); font-weight: 600; text-decoration: none; }
         .register-link a:hover { text-decoration: underline; }
-
-        .right-panel {
-            background: var(--primary-gradient);
-            padding: 60px 50px;
-            color: white;
-            position: relative;
-            overflow: hidden;
-        }
-        .right-panel::before, .right-panel::after {
-            content: '';
-            position: absolute;
-            background: rgba(255,255,255,0.1);
-            border-radius: 50%;
-            backdrop-filter: blur(10px);
-        }
+        .right-panel { background: var(--primary-gradient); padding: 60px 50px; color: white; position: relative; overflow: hidden; }
+        .right-panel::before, .right-panel::after { content: ''; position: absolute; background: rgba(255,255,255,0.1); border-radius: 50%; backdrop-filter: blur(10px); }
         .right-panel::before { top: -50%; right: -20%; width: 450px; height: 450px; }
         .right-panel::after { bottom: -30%; left: -15%; width: 350px; height: 350px; }
-
-        .card {
-            background: rgba(255,255,255,0.15);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 25px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-            animation: float 3s ease-in-out infinite;
-        }
+        .card { background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.2); animation: float 3s ease-in-out infinite; }
         @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
         .card:nth-child(2) { animation-delay: 0.5s; }
-
-        @media (max-width: 968px) {
-            .container-wrapper { grid-template-columns: 1fr; max-width: 500px; max-height: none; }
-            .right-panel { display: none; }
-            .left-panel { padding: 40px 35px; }
-        }
-        @media (max-width: 576px) {
-            .left-panel { padding: 35px 25px; }
-            h1 { font-size: 28px; }
-        }
+        @media (max-width: 968px) { .container-wrapper { grid-template-columns: 1fr; max-width: 500px; max-height: none; } .right-panel { display: none; } .left-panel { padding: 40px 35px; } }
+        @media (max-width: 576px) { .left-panel { padding: 35px 25px; } h1 { font-size: 28px; } }
     </style>
 </head>
 <body>
     <div class="container-wrapper">
-        <!-- Left Panel -->
         <div class="left-panel">
             <div class="text-center mb-4">
                 <div class="logo">
@@ -277,7 +164,6 @@ if (isset($_POST['login'])) {
             </div>
         </div>
 
-        <!-- Right Panel -->
         <div class="right-panel">
             <div class="welcome-text">
                 <h2>Kelola Magang<br>dengan Mudah</h2>
@@ -286,7 +172,7 @@ if (isset($_POST['login'])) {
             <div class="card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="card-title">Akses Cepat</div>
-                    <div class: icon-circle"><i class="fas fa-bolt"></i></div>
+                    <div class="icon-circle"><i class="fas fa-bolt"></i></div>
                 </div>
                 <div class="card-content">Login sekali dan akses semua fitur dashboard</div>
             </div>
@@ -319,8 +205,6 @@ if (isset($_POST['login'])) {
                 icon.classList.replace('fa-eye-slash', 'fa-eye');
             }
         }
-
-        // Auto hide alert
         setTimeout(() => {
             const alert = document.querySelector('.alert-danger');
             if (alert) {
